@@ -1,0 +1,351 @@
+<title>Le Fil Thib'eau</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : un fil d'équipe. Saisie en haut, puis 4 colonnes d'état (onglets au téléphone). */
+:root{
+  --bg:#eef3f5; --surface:#ffffff; --sunk:#e2eaed; --line:#cdd9de;
+  --fg:#0e2a33; --muted:#557079;
+  --accent:#0b6f8a; --accent-fg:#ffffff;
+  --urgent:#c4321f; --urgent-bg:#fde9e5;
+  --s-nouveau:#b06a00; --s-vu:#0b6f8a; --s-encours:#6a4bb5; --s-traite:#2c7a4b;
+  --display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1a1f; --surface:#13272e; --sunk:#0f2127; --line:#25414a;
+    --fg:#e4eff2; --muted:#8fa9b1;
+    --accent:#4fb8d4; --accent-fg:#06222b;
+    --urgent:#ff7a66; --urgent-bg:#3a1a15;
+    --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1a1f; --surface:#13272e; --sunk:#0f2127; --line:#25414a;
+  --fg:#e4eff2; --muted:#8fa9b1;
+  --accent:#4fb8d4; --accent-fg:#06222b;
+  --urgent:#ff7a66; --urgent-bg:#3a1a15;
+  --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,5vw,36px);letter-spacing:-.02em;margin:0;line-height:1.05}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);margin:0;max-width:60ch}
+.who{font-size:13px;color:var(--muted)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.composer{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.composer textarea,.composer input[type=text],.reply input{width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px 12px;min-width:0}
+.composer textarea{min-height:72px;resize:vertical}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row > .grow{flex:1 1 220px;min-width:0}
+.check{display:inline-flex;align-items:center;gap:7px;font-weight:600;color:var(--urgent);user-select:none}
+.check input{width:18px;height:18px;accent-color:var(--urgent)}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:7px;padding:10px 18px;font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.notice{background:var(--sunk);border:1px dashed var(--line);border-radius:8px;padding:12px 14px;color:var(--muted)}
+.err{color:var(--urgent);font-size:13px;min-height:1em}
+
+.tabs{display:none;gap:6px}
+.tabs button{flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 4px;font-size:13px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button b{font-family:var(--mono);font-size:16px;color:var(--fg)}
+.tabs button[aria-selected=true]{border-color:var(--c);box-shadow:inset 0 -3px 0 var(--c);color:var(--fg)}
+
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start}
+.col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.col h2{font-family:var(--display);font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:3px solid var(--c)}
+.col h2 i{font-style:normal;font-family:var(--mono);font-size:13px;color:var(--muted);margin-left:auto}
+.col h2 small{font-family:var(--body);font-weight:400;font-size:12px;color:var(--muted)}
+.empty{color:var(--muted);font-size:13px;padding:14px 4px}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.card.urgent{border-color:var(--urgent);background:var(--urgent-bg)}
+.flag{align-self:flex-start;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--urgent)}
+.txt{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+.client{font-weight:600;font-size:13px;overflow-wrap:anywhere}
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{background:var(--sunk);border:0;border-right:1px solid var(--line);padding:8px 2px;font-size:12px;font-weight:600;color:var(--muted);min-width:0}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--c);color:var(--surface)}
+.tools{display:flex;flex-wrap:wrap;gap:4px 14px}
+.link{background:none;border:0;padding:4px 0;font-size:13px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.link.danger{color:var(--urgent)}
+.pj{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pj img{width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
+.pj .doc{font-size:13px;color:var(--accent);overflow-wrap:anywhere}
+.filebtn{cursor:pointer;color:var(--accent);font-weight:600}
+.replies{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:8px}
+.replies p{margin:0;font-size:13.5px;overflow-wrap:anywhere}
+.replies p b{font-weight:600}
+.reply{display:flex;gap:6px}
+.reply button{flex:none;padding:8px 12px}
+.reply input{padding:8px 10px}
+
+@media (max-width:860px){
+  .tabs{display:flex}
+  .board{grid-template-columns:minmax(0,1fr)}
+  .col{display:none}
+  .col.active{display:flex}
+  .col h2{display:none}
+}
+@media (prefers-reduced-motion:no-preference){ .card{transition:border-color .15s} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Le Fil <span>Thib'eau</span></h1>
+      <p class="sub">Tu fais quelque chose chez un client, tu l'écris ici. Tout le monde le voit, et on fait avancer la carte.</p>
+    </div>
+  </header>
+
+  <form class="composer" id="composer" autocomplete="off">
+    <textarea id="texte" maxlength="1500" placeholder="Ex. Recherche de fuite faite chez M. Martin, fuite trouvée sous le bac de douche, devis à envoyer."></textarea>
+    <div class="row">
+      <input type="text" id="client" class="grow" maxlength="120" placeholder="Client ou chantier (facultatif)">
+      <label class="check"><input type="checkbox" id="urgent"> Urgent</label>
+      <button class="btn" id="publier" type="submit">Publier</button>
+    </div>
+    <div class="row">
+      <label class="link filebtn" id="pjBtn" hidden><input type="file" id="pj" multiple accept="image/*,application/pdf" hidden>+ Photo ou document</label>
+      <span class="meta grow" id="pjList"></span>
+    </div>
+    <div class="err" id="err" role="status"></div>
+  </form>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <nav class="tabs" id="tabs" aria-label="États"></nav>
+  <main class="board" id="board"></main>
+</div>
+
+<script>
+(function(){
+  var STATUTS = [
+    {k:"nouveau", label:"À voir",   court:"À voir",   c:"var(--s-nouveau)", vide:"Rien de nouveau. Les messages publiés arrivent ici."},
+    {k:"vu",      label:"Vu",       court:"Vu",       c:"var(--s-vu)",      vide:"Aucun message simplement vu."},
+    {k:"encours", label:"En cours", court:"En cours", c:"var(--s-encours)", vide:"Personne ne traite de demande en ce moment."},
+    {k:"traite",  label:"Traité",   court:"Traité",   c:"var(--s-traite)",  vide:"Rien de traité ces 7 derniers jours."}
+  ];
+  var SEPT_JOURS = 7*24*3600*1000;
+  var $ = function(id){ return document.getElementById(id); };
+  var db = null, notes = [], pret = false, lecture = false;
+  var onglet = "nouveau", ouvert = null, aSupprimer = null, brouillons = {}, enCours = {};
+  var prenom = "";
+  try { prenom = localStorage.getItem("fil_prenom") || ""; onglet = localStorage.getItem("fil_onglet") || "nouveau"; } catch(e){}
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function quand(t){
+    if(!t) return "";
+    var d = new Date(t), n = new Date(), h = d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    if(d.toDateString() === n.toDateString()) return "aujourd'hui " + h;
+    var hier = new Date(n); hier.setDate(n.getDate()-1);
+    if(d.toDateString() === hier.toDateString()) return "hier " + h;
+    return d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}) + " " + h;
+  }
+  function erreur(msg){ $("err").textContent = msg || ""; }
+  function refus(e){
+    var code = e && e.code;
+    if(code === "invalid_argument" || code === "not_granted" || code === "revoked"){ lecture = true; majAcces(); return "Tu peux lire le fil, mais pas le modifier avec cet accès."; }
+    if(code === "too_large") return "Fichier trop lourd (20 Mo maximum).";
+    if(code === "unsupported_type") return "Format non accepté : photos (JPG, PNG) et PDF uniquement.";
+    if(code === "quota_or_state") return "Plus de place pour les fichiers. Supprime d'anciennes cartes avec photos.";
+    if(code === "quota_exceeded") return "Le fil est plein. Supprime d'anciens messages traités.";
+    return "Le message n'est pas parti. Réessaie dans un instant.";
+  }
+
+  function majQui(){}
+  function majAcces(){
+    var n = $("notice");
+    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne peut pas se charger ici. Ouvre cette page en étant connecté à ton compte Claude."; $("composer").hidden = true; }
+    else if(lecture){ n.hidden = false; n.textContent = "Tu as un accès en lecture seule : tu vois le fil, sans pouvoir publier ni déplacer les cartes."; $("composer").hidden = true; }
+    else { n.hidden = true; $("composer").hidden = false; }
+  }
+
+  function tri(a,b){ return (b.urgent?1:0) - (a.urgent?1:0) || (b.cree||0) - (a.cree||0); }
+  function groupe(k){
+    var now = Date.now();
+    return notes.filter(function(n){
+      var s = STATUTS.some(function(x){return x.k===n.statut;}) ? n.statut : "nouveau";
+      if(s !== k) return false;
+      if(k === "traite" && now - (n.statutLe || n.cree || now) > SEPT_JOURS) return false;
+      return true;
+    }).sort(tri);
+  }
+
+  function carte(n){
+    var occupe = !!enCours[n.id], h = "";
+    h += '<article class="card' + (n.urgent ? " urgent" : "") + '" data-id="' + esc(n.id) + '">';
+    if(n.urgent) h += '<span class="flag">Urgent</span>';
+    if(n.client) h += '<div class="client">' + esc(n.client) + '</div>';
+    if(n.texte) h += '<p class="txt">' + esc(n.texte) + '</p>';
+    var pj = Array.isArray(n.pieces) ? n.pieces : [];
+    if(pj.length){
+      h += '<div class="pj">';
+      pj.forEach(function(p){
+        var u = "/_blob/" + encodeURIComponent(p.id);
+        h += /^image\//.test(p.type || "")
+          ? '<a href="' + u + '" target="_blank" rel="noopener"><img src="' + u + '" alt="Photo jointe" loading="lazy"></a>'
+          : '<a class="doc" href="' + u + '" target="_blank" rel="noopener">' + esc(p.nom || "Document") + '</a>';
+      });
+      h += '</div>';
+    }
+    h += '<div class="meta">' + esc(quand(n.cree));
+    if(n.statutLe && n.statut !== "nouveau") h += '<br>' + esc(STATUTS.filter(function(s){return s.k===n.statut;})[0].label.toLowerCase()) + ' · ' + esc(quand(n.statutLe));
+    h += '</div>';
+    var rep = Array.isArray(n.reponses) ? n.reponses : [];
+    if(rep.length || ouvert === n.id){
+      h += '<div class="replies">';
+      rep.forEach(function(r){ h += '<p>' + esc(r.t) + '</p>'; });
+      if(ouvert === n.id && !lecture) h += '<div class="reply"><input type="text" id="rep-' + esc(n.id) + '" maxlength="500" placeholder="Ta réponse" value="' + esc(brouillons[n.id] || "") + '"><button class="btn" type="button" data-act="envoyer">Envoyer</button></div>';
+      h += '</div>';
+    }
+    if(!lecture){
+      h += '<div class="seg" role="group" aria-label="État">';
+      STATUTS.forEach(function(s){
+        h += '<button type="button" data-act="statut" data-s="' + s.k + '" style="--c:' + s.c + '" aria-pressed="' + (n.statut === s.k || (s.k==="nouveau" && !n.statut)) + '"' + (occupe ? " disabled" : "") + '>' + s.court + '</button>';
+      });
+      h += '</div><div class="tools">';
+      if(ouvert !== n.id) h += '<button class="link" type="button" data-act="repondre">Répondre</button>';
+      h += '<button class="link" type="button" data-act="urgent">' + (n.urgent ? "Retirer urgent" : "Passer en urgent") + '</button>';
+      h += aSupprimer === n.id
+        ? '<button class="link danger" type="button" data-act="suppr-ok">Confirmer la suppression</button><button class="link" type="button" data-act="suppr-non">Annuler</button>'
+        : '<button class="link" type="button" data-act="suppr">Supprimer</button>';
+      h += '</div>';
+    }
+    return h + '</article>';
+  }
+
+  function rendre(){
+    var actif = document.activeElement, focusId = actif && actif.id && actif.id.indexOf("rep-") === 0 ? actif.id : null;
+    var tabs = "", cols = "";
+    STATUTS.forEach(function(s){
+      var g = groupe(s.k);
+      tabs += '<button type="button" role="tab" data-tab="' + s.k + '" style="--c:' + s.c + '" aria-selected="' + (onglet === s.k) + '"><b>' + g.length + '</b>' + s.court + '</button>';
+      cols += '<section class="col' + (onglet === s.k ? " active" : "") + '" style="--c:' + s.c + '"><h2>' + s.label + (s.k==="traite" ? ' <small>7 derniers jours</small>' : '') + '<i>' + g.length + '</i></h2>';
+      if(!pret) cols += '<div class="empty">Chargement du fil…</div>';
+      else if(!g.length) cols += '<div class="empty">' + (notes.length === 0 && s.k === "nouveau" ? "Le fil est vide. Écris le premier message juste au-dessus : il apparaîtra ici pour toute l'équipe." : s.vide) + '</div>';
+      else cols += g.map(carte).join("");
+      cols += '</section>';
+    });
+    $("tabs").innerHTML = tabs; $("board").innerHTML = cols;
+    if(focusId){ var el = $(focusId); if(el){ el.focus(); var v = el.value; el.value = ""; el.value = v; } }
+  }
+
+  function trouver(id){ return notes.filter(function(n){ return n.id === id; })[0]; }
+  function ecrire(id, patch){
+    if(enCours[id]) return Promise.resolve(false);
+    enCours[id] = true; rendre();
+    return db.doc("notes/" + id).update(patch).then(function(){ erreur(""); return true; }, function(e){ erreur(refus(e)); return false; })
+      .then(function(ok){ delete enCours[id]; rendre(); return ok; });
+  }
+  function exigerPrenom(){ return true; }
+
+  $("tabs").addEventListener("click", function(e){
+    var b = e.target.closest("[data-tab]"); if(!b) return;
+    onglet = b.dataset.tab; try { localStorage.setItem("fil_onglet", onglet); } catch(x){}
+    rendre();
+  });
+  $("board").addEventListener("input", function(e){
+    if(e.target.id && e.target.id.indexOf("rep-") === 0) brouillons[e.target.id.slice(4)] = e.target.value;
+  });
+  $("board").addEventListener("keydown", function(e){
+    if(e.key === "Enter" && e.target.id && e.target.id.indexOf("rep-") === 0){ e.preventDefault(); repondre(e.target.id.slice(4)); }
+  });
+  function repondre(id){
+    var n = trouver(id), t = (brouillons[id] || "").trim();
+    if(!n || !t || !exigerPrenom()) return;
+    var rep = (Array.isArray(n.reponses) ? n.reponses.slice() : []).concat([{a:prenom, t:t, le:Date.now()}]);
+    ecrire(id, {reponses:rep}).then(function(ok){ if(ok){ delete brouillons[id]; ouvert = null; rendre(); } });
+  }
+  $("board").addEventListener("click", function(e){
+    var b = e.target.closest("[data-act]"); if(!b || !db) return;
+    var id = b.closest(".card").dataset.id, n = trouver(id), act = b.dataset.act; if(!n) return;
+    if(act === "statut"){
+      if(n.statut === b.dataset.s || !exigerPrenom()) return;
+      ecrire(id, {statut:b.dataset.s, statutPar:prenom, statutLe:Date.now()});
+    } else if(act === "urgent"){ ecrire(id, {urgent:!n.urgent}); }
+    else if(act === "repondre"){ ouvert = id; rendre(); var el = $("rep-" + id); if(el) el.focus(); }
+    else if(act === "envoyer"){ repondre(id); }
+    else if(act === "suppr"){ aSupprimer = id; rendre(); }
+    else if(act === "suppr-non"){ aSupprimer = null; rendre(); }
+    else if(act === "suppr-ok"){
+      aSupprimer = null; enCours[id] = true; rendre();
+      db.doc("notes/" + id).delete().then(function(){
+        erreur("");
+        if(assets && Array.isArray(n.pieces)) n.pieces.forEach(function(p){ assets.delete(p.id).catch(function(){}); });
+      }, function(x){ erreur(refus(x)); }).then(function(){ delete enCours[id]; rendre(); });
+    }
+  });
+
+  $("composer").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!db){ erreur("Le fil n'est pas encore chargé."); return; }
+    var t = $("texte").value.trim();
+    if(!exigerPrenom()) return;
+    if(!t && !$("pj").files.length){ erreur("Écris ton message avant de publier."); $("texte").focus(); return; }
+    var btn = $("publier"); btn.disabled = true; btn.textContent = "Envoi…";
+    envoyerPieces().then(function(pieces){ return db.collection("notes").add({
+      pieces:pieces, texte:t, client:$("client").value.trim(), urgent:$("urgent").checked,
+      statut:"nouveau", auteur:prenom, cree:Date.now(), reponses:[]
+    }); }).then(function(){
+      $("pj").value = ""; $("pjList").textContent = "";
+      $("texte").value = ""; $("client").value = ""; $("urgent").checked = false; erreur("");
+      onglet = "nouveau"; rendre();
+    }, function(x){ erreur(refus(x)); }).then(function(){ btn.disabled = false; btn.textContent = "Publier"; });
+  });
+
+  var assets = null;
+  $("pj").addEventListener("change", function(){
+    $("pjList").textContent = Array.prototype.map.call($("pj").files, function(f){ return f.name; }).join(", ");
+  });
+  function reduire(file){
+    if(!/^image\//.test(file.type) || file.type === "image/gif") return Promise.resolve(file);
+    return new Promise(function(res){
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function(){
+        var k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function(b){ res(b || file); }, "image/jpeg", 0.82);
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); res(file); };
+      img.src = url;
+    });
+  }
+  function envoyerPieces(){
+    var files = assets ? Array.prototype.slice.call($("pj").files) : [], out = [];
+    return files.reduce(function(p, f){
+      return p.then(function(){ return reduire(f); })
+        .then(function(b){ return assets.upload(b, {type: b.type || f.type}); })
+        .then(function(x){ out.push({id:x.id, type:x.contentType, nom:String(f.name).slice(0,80)}); });
+    }, Promise.resolve()).then(function(){ return out; });
+  }
+
+  majQui(); rendre();
+
+  var use = window.claude && window.claude.use ? window.claude.use.bind(window.claude) : function(){ return Promise.resolve(null); };
+  use("user").then(function(u){ return u ? u.can("data.write") : null; }, function(){ return null; }).then(function(peut){
+    if(peut === false){ lecture = true; majAcces(); rendre(); }
+  });
+  use("assets").then(function(a){ assets = a; $("pjBtn").hidden = !a; }, function(){});
+  use("db").then(function(d){
+    db = d;
+    if(!db){ pret = true; majAcces(); rendre(); return; }
+    db.collection("notes").limit(1000).onSnapshot(function(snap){
+      notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
+      pret = true; majAcces(); rendre();
+    }, function(){ pret = true; db = null; majAcces(); rendre(); });
+  }, function(){ pret = true; majAcces(); rendre(); });
+})();
+</script>
