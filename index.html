@@ -1,4 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Le Fil Thib'eau</title>
+<!--
+  VERSION AUTONOME (hors Claude) : les cartes sont enregistrees dans Firebase.
+
+  1) Colle la configuration de ton projet Firebase dans FIREBASE_CONFIG ci-dessous
+     (console Firebase > Parametres du projet > Tes applications > Configuration).
+  2) Active Authentication > Email/Mot de passe et cree un compte par collegue.
+  3) Active Firestore et mets ces regles (seules les personnes connectees lisent et ecrivent) :
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /notes/{id} { allow read, write: if request.auth != null; }
+       }
+     }
+
+  Les cartes sont dans la collection "notes".
+-->
+<script>
+window.FIREBASE_CONFIG = {
+  apiKey: "COLLE_TA_CLE_ICI",
+  authDomain: "ton-projet.firebaseapp.com",
+  projectId: "ton-projet"
+};
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout : un fil d'équipe. Saisie en haut, puis 4 colonnes d'état (onglets au téléphone). */
@@ -31,6 +63,9 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+.stack{display:flex;flex-direction:column;gap:18px}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
 .wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
 header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
@@ -43,7 +78,7 @@ button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 .composer{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.composer textarea,.composer input[type=text],.reply input{width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px 12px;min-width:0}
+.composer textarea,.composer input[type=text],.composer input[type=email],.composer input[type=password],.reply input{width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px 12px;min-width:0}
 .composer textarea{min-height:72px;resize:vertical}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .row > .grow{flex:1 1 220px;min-width:0}
@@ -100,6 +135,8 @@ button{cursor:pointer}
 @media (prefers-reduced-motion:no-preference){ .card{transition:border-color .15s} }
 </style>
 
+</head>
+<body>
 <div class="wrap">
   <header>
     <div>
@@ -108,6 +145,14 @@ button{cursor:pointer}
     </div>
   </header>
 
+  <form class="composer" id="login" hidden>
+    <input type="email" id="email" placeholder="E-mail" autocomplete="username" required>
+    <input type="password" id="mdp" placeholder="Mot de passe" autocomplete="current-password" required>
+    <div class="row"><button class="btn" type="submit">Se connecter</button></div>
+    <div class="err" id="loginErr" role="status"></div>
+  </form>
+
+  <div class="stack" id="app" hidden>
   <form class="composer" id="composer" autocomplete="off">
     <textarea id="texte" maxlength="1500" placeholder="Ex. Recherche de fuite faite chez M. Martin, fuite trouvée sous le bac de douche, devis à envoyer."></textarea>
     <div class="row">
@@ -115,10 +160,7 @@ button{cursor:pointer}
       <label class="check"><input type="checkbox" id="urgent"> Urgent</label>
       <button class="btn" id="publier" type="submit">Publier</button>
     </div>
-    <div class="row">
-      <label class="link filebtn" id="pjBtn" hidden><input type="file" id="pj" multiple accept="image/*,application/pdf" hidden>+ Photo ou document</label>
-      <span class="meta grow" id="pjList"></span>
-    </div>
+    <input type="file" id="pj" hidden>
     <div class="err" id="err" role="status"></div>
   </form>
 
@@ -126,6 +168,8 @@ button{cursor:pointer}
 
   <nav class="tabs" id="tabs" aria-label="États"></nav>
   <main class="board" id="board"></main>
+  <div><button class="link" type="button" id="sortir">Se déconnecter</button></div>
+  </div>
 </div>
 
 <script>
@@ -156,6 +200,7 @@ button{cursor:pointer}
   function refus(e){
     var code = e && e.code;
     if(code === "invalid_argument" || code === "not_granted" || code === "revoked"){ lecture = true; majAcces(); return "Tu peux lire le fil, mais pas le modifier avec cet accès."; }
+    if(code === "permission-denied") return "Accès refusé par Firebase. Vérifie les règles Firestore.";
     if(code === "too_large") return "Fichier trop lourd (20 Mo maximum).";
     if(code === "unsupported_type") return "Format non accepté : photos (JPG, PNG) et PDF uniquement.";
     if(code === "quota_or_state") return "Plus de place pour les fichiers. Supprime d'anciennes cartes avec photos.";
@@ -166,7 +211,7 @@ button{cursor:pointer}
   function majQui(){}
   function majAcces(){
     var n = $("notice");
-    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne peut pas se charger ici. Ouvre cette page en étant connecté à ton compte Claude."; $("composer").hidden = true; }
+    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne se charge pas. Vérifie ta connexion internet et les règles Firestore."; $("composer").hidden = true; }
     else if(lecture){ n.hidden = false; n.textContent = "Tu as un accès en lecture seule : tu vois le fil, sans pouvoir publier ni déplacer les cartes."; $("composer").hidden = true; }
     else { n.hidden = true; $("composer").hidden = false; }
   }
@@ -334,18 +379,32 @@ button{cursor:pointer}
 
   majQui(); rendre();
 
-  var use = window.claude && window.claude.use ? window.claude.use.bind(window.claude) : function(){ return Promise.resolve(null); };
-  use("user").then(function(u){ return u ? u.can("data.write") : null; }, function(){ return null; }).then(function(peut){
-    if(peut === false){ lecture = true; majAcces(); rendre(); }
-  });
-  use("assets").then(function(a){ assets = a; $("pjBtn").hidden = !a; }, function(){});
-  use("db").then(function(d){
-    db = d;
-    if(!db){ pret = true; majAcces(); rendre(); return; }
-    db.collection("notes").limit(1000).onSnapshot(function(snap){
+  var CFG = window.FIREBASE_CONFIG;
+  if(!CFG || !CFG.apiKey || CFG.apiKey.indexOf("COLLE") === 0 || !window.firebase){
+    $("notice").hidden = false; $("app").hidden = false; $("composer").hidden = true;
+    $("notice").textContent = "Configuration Firebase manquante : renseigne FIREBASE_CONFIG en haut du fichier.";
+    return;
+  }
+  firebase.initializeApp(CFG);
+  var auth = firebase.auth(), stop = null;
+  auth.onAuthStateChanged(function(u){
+    if(stop){ stop(); stop = null; }
+    $("login").hidden = !!u; $("app").hidden = !u;
+    if(!u){ db = null; notes = []; pret = false; return; }
+    db = firebase.firestore();
+    stop = db.collection("notes").limit(1000).onSnapshot(function(snap){
       notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
       pret = true; majAcces(); rendre();
     }, function(){ pret = true; db = null; majAcces(); rendre(); });
-  }, function(){ pret = true; majAcces(); rendre(); });
+  });
+  $("login").addEventListener("submit", function(e){
+    e.preventDefault(); $("loginErr").textContent = "";
+    auth.signInWithEmailAndPassword($("email").value.trim(), $("mdp").value).catch(function(){
+      $("loginErr").textContent = "Connexion refusée. Vérifie l'e-mail et le mot de passe.";
+    });
+  });
+  $("sortir").addEventListener("click", function(){ auth.signOut(); });
 })();
 </script>
+</body>
+</html>
