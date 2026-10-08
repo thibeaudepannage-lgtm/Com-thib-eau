@@ -5,21 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Le Fil Thib'eau</title>
 <!--
-  VERSION AUTONOME (hors Claude) : les cartes sont enregistrees dans Firebase.
+  Pour que la page enregistre les cartes et que tout le monde voie les memes :
 
   1) Colle la configuration de ton projet Firebase dans FIREBASE_CONFIG ci-dessous
      (console Firebase > Parametres du projet > Tes applications > Configuration).
-  2) Active Authentication > Email/Mot de passe et cree un compte par collegue.
-  3) Active Firestore et mets ces regles (seules les personnes connectees lisent et ecrivent) :
+  2) Active Firestore et ajoute cette regle pour la collection "notes" :
 
      rules_version = '2';
      service cloud.firestore {
        match /databases/{database}/documents {
-         match /notes/{id} { allow read, write: if request.auth != null; }
+         match /notes/{id} { allow read, write: if true; }
        }
      }
-
-  Les cartes sont dans la collection "notes".
 -->
 <script>
 window.FIREBASE_CONFIG = {
@@ -29,7 +26,6 @@ window.FIREBASE_CONFIG = {
 };
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -65,7 +61,6 @@ window.FIREBASE_CONFIG = {
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0}
-.stack{display:flex;flex-direction:column;gap:18px}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
 .wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
 header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
@@ -78,7 +73,7 @@ button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 .composer{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.composer textarea,.composer input[type=text],.composer input[type=email],.composer input[type=password],.reply input{width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px 12px;min-width:0}
+.composer textarea,.composer input[type=text],.reply input{width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px 12px;min-width:0}
 .composer textarea{min-height:72px;resize:vertical}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .row > .grow{flex:1 1 220px;min-width:0}
@@ -141,22 +136,14 @@ button{cursor:pointer}
   <header>
     <div>
       <h1>Le Fil <span>Thib'eau</span></h1>
-      <p class="sub">Tu fais quelque chose chez un client, tu l'écris ici. Tout le monde le voit, et on fait avancer la carte.</p>
+      <p class="sub">Note ce qu'il y a à faire. Tout le monde le voit, on change l'état et on classe dans l'ordre.</p>
     </div>
   </header>
 
-  <form class="composer" id="login" hidden>
-    <input type="email" id="email" placeholder="E-mail" autocomplete="username" required>
-    <input type="password" id="mdp" placeholder="Mot de passe" autocomplete="current-password" required>
-    <div class="row"><button class="btn" type="submit">Se connecter</button></div>
-    <div class="err" id="loginErr" role="status"></div>
-  </form>
-
-  <div class="stack" id="app" hidden>
   <form class="composer" id="composer" autocomplete="off">
-    <textarea id="texte" maxlength="1500" placeholder="Ex. Recherche de fuite faite chez M. Martin, fuite trouvée sous le bac de douche, devis à envoyer."></textarea>
+    <textarea id="texte" maxlength="1500" placeholder="Quoi faire ? Ex. Rappeler le client pour le devis."></textarea>
     <div class="row">
-      <input type="text" id="client" class="grow" maxlength="120" placeholder="Client ou chantier (facultatif)">
+      <span class="grow"></span>
       <label class="check"><input type="checkbox" id="urgent"> Urgent</label>
       <button class="btn" id="publier" type="submit">Publier</button>
     </div>
@@ -168,8 +155,6 @@ button{cursor:pointer}
 
   <nav class="tabs" id="tabs" aria-label="États"></nav>
   <main class="board" id="board"></main>
-  <div><button class="link" type="button" id="sortir">Se déconnecter</button></div>
-  </div>
 </div>
 
 <script>
@@ -200,7 +185,7 @@ button{cursor:pointer}
   function refus(e){
     var code = e && e.code;
     if(code === "invalid_argument" || code === "not_granted" || code === "revoked"){ lecture = true; majAcces(); return "Tu peux lire le fil, mais pas le modifier avec cet accès."; }
-    if(code === "permission-denied") return "Accès refusé par Firebase. Vérifie les règles Firestore.";
+    if(code === "permission-denied") return "Accès refusé par Firebase. Vérifie la règle Firestore.";
     if(code === "too_large") return "Fichier trop lourd (20 Mo maximum).";
     if(code === "unsupported_type") return "Format non accepté : photos (JPG, PNG) et PDF uniquement.";
     if(code === "quota_or_state") return "Plus de place pour les fichiers. Supprime d'anciennes cartes avec photos.";
@@ -211,12 +196,13 @@ button{cursor:pointer}
   function majQui(){}
   function majAcces(){
     var n = $("notice");
-    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne se charge pas. Vérifie ta connexion internet et les règles Firestore."; $("composer").hidden = true; }
+    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne se charge pas. Vérifie ta connexion internet et la règle Firestore."; $("composer").hidden = true; }
     else if(lecture){ n.hidden = false; n.textContent = "Tu as un accès en lecture seule : tu vois le fil, sans pouvoir publier ni déplacer les cartes."; $("composer").hidden = true; }
     else { n.hidden = true; $("composer").hidden = false; }
   }
 
-  function tri(a,b){ return (b.urgent?1:0) - (a.urgent?1:0) || (b.cree||0) - (a.cree||0); }
+  function cle(n){ return typeof n.ordre === "number" ? n.ordre : -(n.cree || 0); }
+  function tri(a,b){ return (b.urgent?1:0) - (a.urgent?1:0) || cle(a) - cle(b); }
   function groupe(k){
     var now = Date.now();
     return notes.filter(function(n){
@@ -260,7 +246,8 @@ button{cursor:pointer}
         h += '<button type="button" data-act="statut" data-s="' + s.k + '" style="--c:' + s.c + '" aria-pressed="' + (n.statut === s.k || (s.k==="nouveau" && !n.statut)) + '"' + (occupe ? " disabled" : "") + '>' + s.court + '</button>';
       });
       h += '</div><div class="tools">';
-      if(ouvert !== n.id) h += '<button class="link" type="button" data-act="repondre">Répondre</button>';
+      h += '<button class="link" type="button" data-act="haut"' + (occupe ? " disabled" : "") + '>↑ Monter</button>';
+      h += '<button class="link" type="button" data-act="bas"' + (occupe ? " disabled" : "") + '>↓ Descendre</button>';
       h += '<button class="link" type="button" data-act="urgent">' + (n.urgent ? "Retirer urgent" : "Passer en urgent") + '</button>';
       h += aSupprimer === n.id
         ? '<button class="link danger" type="button" data-act="suppr-ok">Confirmer la suppression</button><button class="link" type="button" data-act="suppr-non">Annuler</button>'
@@ -319,6 +306,14 @@ button{cursor:pointer}
       if(n.statut === b.dataset.s || !exigerPrenom()) return;
       ecrire(id, {statut:b.dataset.s, statutPar:prenom, statutLe:Date.now()});
     } else if(act === "urgent"){ ecrire(id, {urgent:!n.urgent}); }
+    else if(act === "haut" || act === "bas"){
+      var sens = act === "haut" ? -1 : 1, g = groupe(STATUTS.some(function(x){ return x.k === n.statut; }) ? n.statut : "nouveau");
+      var v = g[g.indexOf(n) + sens];
+      if(!v || !!v.urgent !== !!n.urgent) return;
+      var a = cle(n), b = cle(v);
+      if(a === b){ ecrire(id, {ordre: b + sens}); }
+      else { ecrire(id, {ordre: b}); ecrire(v.id, {ordre: a}); }
+    }
     else if(act === "repondre"){ ouvert = id; rendre(); var el = $("rep-" + id); if(el) el.focus(); }
     else if(act === "envoyer"){ repondre(id); }
     else if(act === "suppr"){ aSupprimer = id; rendre(); }
@@ -340,11 +335,11 @@ button{cursor:pointer}
     if(!t && !$("pj").files.length){ erreur("Écris ton message avant de publier."); $("texte").focus(); return; }
     var btn = $("publier"); btn.disabled = true; btn.textContent = "Envoi…";
     envoyerPieces().then(function(pieces){ return db.collection("notes").add({
-      pieces:pieces, texte:t, client:$("client").value.trim(), urgent:$("urgent").checked,
+      pieces:pieces, texte:t, ordre:-Date.now(), urgent:$("urgent").checked,
       statut:"nouveau", auteur:prenom, cree:Date.now(), reponses:[]
     }); }).then(function(){
       $("pj").value = ""; $("pjList").textContent = "";
-      $("texte").value = ""; $("client").value = ""; $("urgent").checked = false; erreur("");
+      $("texte").value = ""; $("urgent").checked = false; erreur("");
       onglet = "nouveau"; rendre();
     }, function(x){ erreur(refus(x)); }).then(function(){ btn.disabled = false; btn.textContent = "Publier"; });
   });
@@ -381,29 +376,16 @@ button{cursor:pointer}
 
   var CFG = window.FIREBASE_CONFIG;
   if(!CFG || !CFG.apiKey || CFG.apiKey.indexOf("COLLE") === 0 || !window.firebase){
-    $("notice").hidden = false; $("app").hidden = false; $("composer").hidden = true;
+    $("notice").hidden = false; $("composer").hidden = true;
     $("notice").textContent = "Configuration Firebase manquante : renseigne FIREBASE_CONFIG en haut du fichier.";
     return;
   }
   firebase.initializeApp(CFG);
-  var auth = firebase.auth(), stop = null;
-  auth.onAuthStateChanged(function(u){
-    if(stop){ stop(); stop = null; }
-    $("login").hidden = !!u; $("app").hidden = !u;
-    if(!u){ db = null; notes = []; pret = false; return; }
-    db = firebase.firestore();
-    stop = db.collection("notes").limit(1000).onSnapshot(function(snap){
-      notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
-      pret = true; majAcces(); rendre();
-    }, function(){ pret = true; db = null; majAcces(); rendre(); });
-  });
-  $("login").addEventListener("submit", function(e){
-    e.preventDefault(); $("loginErr").textContent = "";
-    auth.signInWithEmailAndPassword($("email").value.trim(), $("mdp").value).catch(function(){
-      $("loginErr").textContent = "Connexion refusée. Vérifie l'e-mail et le mot de passe.";
-    });
-  });
-  $("sortir").addEventListener("click", function(){ auth.signOut(); });
+  db = firebase.firestore();
+  db.collection("notes").limit(1000).onSnapshot(function(snap){
+    notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
+    pret = true; majAcces(); rendre();
+  }, function(){ pret = true; db = null; majAcces(); rendre(); });
 })();
 </script>
 </body>
