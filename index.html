@@ -4,29 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Le Fil Thib'eau</title>
-<!--
-  Pour que la page enregistre les cartes et que tout le monde voie les memes :
-
-  1) Colle la configuration de ton projet Firebase dans FIREBASE_CONFIG ci-dessous
-     (console Firebase > Parametres du projet > Tes applications > Configuration).
-  2) Active Firestore et ajoute cette regle pour la collection "notes" :
-
-     rules_version = '2';
-     service cloud.firestore {
-       match /databases/{database}/documents {
-         match /notes/{id} { allow read, write: if true; }
-       }
-     }
--->
-<script>
-window.FIREBASE_CONFIG = {
-  apiKey: "COLLE_TA_CLE_ICI",
-  authDomain: "ton-projet.firebaseapp.com",
-  projectId: "ton-projet"
-};
-</script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- Version solo : aucune configuration. Les cartes sont gardees dans le navigateur de l'appareil (localStorage). -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout : un fil d'équipe. Saisie en haut, puis 4 colonnes d'état (onglets au téléphone). */
@@ -136,7 +114,7 @@ button{cursor:pointer}
   <header>
     <div>
       <h1>Le Fil <span>Thib'eau</span></h1>
-      <p class="sub">Note ce qu'il y a à faire. Tout le monde le voit, on change l'état et on classe dans l'ordre.</p>
+      <p class="sub">Note ce qu'il y a à faire, change l'état au fur et à mesure et classe dans l'ordre.</p>
     </div>
   </header>
 
@@ -145,9 +123,9 @@ button{cursor:pointer}
     <div class="row">
       <span class="grow"></span>
       <label class="check"><input type="checkbox" id="urgent"> Urgent</label>
-      <button class="btn" id="publier" type="submit">Publier</button>
+      <button class="btn" id="publier" type="submit">Ajouter</button>
     </div>
-    <input type="file" id="pj" hidden>
+    <input type="file" id="pj" hidden><span id="pjList" hidden></span>
     <div class="err" id="err" role="status"></div>
   </form>
 
@@ -160,9 +138,9 @@ button{cursor:pointer}
 <script>
 (function(){
   var STATUTS = [
-    {k:"nouveau", label:"À voir",   court:"À voir",   c:"var(--s-nouveau)", vide:"Rien de nouveau. Les messages publiés arrivent ici."},
-    {k:"vu",      label:"Vu",       court:"Vu",       c:"var(--s-vu)",      vide:"Aucun message simplement vu."},
-    {k:"encours", label:"En cours", court:"En cours", c:"var(--s-encours)", vide:"Personne ne traite de demande en ce moment."},
+    {k:"nouveau", label:"À faire",  court:"À faire",   c:"var(--s-nouveau)", vide:"Rien à faire pour l'instant."},
+    {k:"vu",      label:"Pris en compte", court:"Pris", c:"var(--s-vu)",   vide:"Rien de pris en compte."},
+    {k:"encours", label:"En cours", court:"En cours", c:"var(--s-encours)", vide:"Rien en cours."},
     {k:"traite",  label:"Traité",   court:"Traité",   c:"var(--s-traite)",  vide:"Rien de traité ces 7 derniers jours."}
   ];
   var SEPT_JOURS = 7*24*3600*1000;
@@ -185,7 +163,6 @@ button{cursor:pointer}
   function refus(e){
     var code = e && e.code;
     if(code === "invalid_argument" || code === "not_granted" || code === "revoked"){ lecture = true; majAcces(); return "Tu peux lire le fil, mais pas le modifier avec cet accès."; }
-    if(code === "permission-denied") return "Accès refusé par Firebase. Vérifie la règle Firestore.";
     if(code === "too_large") return "Fichier trop lourd (20 Mo maximum).";
     if(code === "unsupported_type") return "Format non accepté : photos (JPG, PNG) et PDF uniquement.";
     if(code === "quota_or_state") return "Plus de place pour les fichiers. Supprime d'anciennes cartes avec photos.";
@@ -196,7 +173,7 @@ button{cursor:pointer}
   function majQui(){}
   function majAcces(){
     var n = $("notice");
-    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne se charge pas. Vérifie ta connexion internet et la règle Firestore."; $("composer").hidden = true; }
+    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne peut pas se charger ici. Ouvre cette page en étant connecté à ton compte Claude."; $("composer").hidden = true; }
     else if(lecture){ n.hidden = false; n.textContent = "Tu as un accès en lecture seule : tu vois le fil, sans pouvoir publier ni déplacer les cartes."; $("composer").hidden = true; }
     else { n.hidden = true; $("composer").hidden = false; }
   }
@@ -265,7 +242,7 @@ button{cursor:pointer}
       tabs += '<button type="button" role="tab" data-tab="' + s.k + '" style="--c:' + s.c + '" aria-selected="' + (onglet === s.k) + '"><b>' + g.length + '</b>' + s.court + '</button>';
       cols += '<section class="col' + (onglet === s.k ? " active" : "") + '" style="--c:' + s.c + '"><h2>' + s.label + (s.k==="traite" ? ' <small>7 derniers jours</small>' : '') + '<i>' + g.length + '</i></h2>';
       if(!pret) cols += '<div class="empty">Chargement du fil…</div>';
-      else if(!g.length) cols += '<div class="empty">' + (notes.length === 0 && s.k === "nouveau" ? "Le fil est vide. Écris le premier message juste au-dessus : il apparaîtra ici pour toute l'équipe." : s.vide) + '</div>';
+      else if(!g.length) cols += '<div class="empty">' + (notes.length === 0 && s.k === "nouveau" ? "La liste est vide. Écris la première chose à faire juste au-dessus." : s.vide) + '</div>';
       else cols += g.map(carte).join("");
       cols += '</section>';
     });
@@ -341,7 +318,7 @@ button{cursor:pointer}
       $("pj").value = ""; $("pjList").textContent = "";
       $("texte").value = ""; $("urgent").checked = false; erreur("");
       onglet = "nouveau"; rendre();
-    }, function(x){ erreur(refus(x)); }).then(function(){ btn.disabled = false; btn.textContent = "Publier"; });
+    }, function(x){ erreur(refus(x)); }).then(function(){ btn.disabled = false; btn.textContent = "Ajouter"; });
   });
 
   var assets = null;
@@ -374,18 +351,39 @@ button{cursor:pointer}
 
   majQui(); rendre();
 
-  var CFG = window.FIREBASE_CONFIG;
-  if(!CFG || !CFG.apiKey || CFG.apiKey.indexOf("COLLE") === 0 || !window.firebase){
-    $("notice").hidden = false; $("composer").hidden = true;
-    $("notice").textContent = "Configuration Firebase manquante : renseigne FIREBASE_CONFIG en haut du fichier.";
-    return;
+  // Stockage local : meme interface que la version partagee, mais dans le navigateur.
+  var CLE = "fil_thibeau_notes", ecouteur = null;
+  function lire(){ try { return JSON.parse(localStorage.getItem(CLE) || "[]") || []; } catch(e){ return []; } }
+  function sauver(liste){
+    try { localStorage.setItem(CLE, JSON.stringify(liste)); }
+    catch(e){ return Promise.reject({code:"stockage"}); }
+    diffuser(); return Promise.resolve();
   }
-  firebase.initializeApp(CFG);
-  db = firebase.firestore();
-  db.collection("notes").limit(1000).onSnapshot(function(snap){
-    notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
+  function diffuser(){
+    if(ecouteur) ecouteur({docs: lire().map(function(n){ return {id:n.id, data:function(){ return n; }}; })});
+  }
+  db = {
+    collection: function(){
+      var c = {
+        add: function(d){ var l = lire(); d.id = "n" + Date.now() + Math.random().toString(36).slice(2,7); l.push(d); return sauver(l); },
+        limit: function(){ return c; },
+        onSnapshot: function(cb){ ecouteur = cb; diffuser(); }
+      };
+      return c;
+    },
+    doc: function(chemin){
+      var id = chemin.split("/")[1];
+      return {
+        update: function(p){ var l = lire(); l.forEach(function(n){ if(n.id === id) Object.assign(n, p); }); return sauver(l); },
+        delete: function(){ return sauver(lire().filter(function(n){ return n.id !== id; })); }
+      };
+    }
+  };
+  window.addEventListener("storage", function(e){ if(e.key === CLE) diffuser(); });
+  db.collection("notes").onSnapshot(function(snap){
+    notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data()); o.id = doc.id; return o; });
     pret = true; majAcces(); rendre();
-  }, function(){ pret = true; db = null; majAcces(); rendre(); });
+  });
 })();
 </script>
 </body>
