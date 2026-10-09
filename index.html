@@ -13,7 +13,7 @@
   --fg:#0e2a33; --muted:#557079;
   --accent:#0b6f8a; --accent-fg:#ffffff;
   --urgent:#c4321f; --urgent-bg:#fde9e5;
-  --s-nouveau:#b06a00; --s-vu:#0b6f8a; --s-encours:#6a4bb5; --s-traite:#2c7a4b;
+  --s-nouveau:#b06a00; --s-vu:#0b6f8a; --s-encours:#6a4bb5; --s-traite:#2c7a4b; --s-doriane:#b0336f;
   --display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -24,7 +24,7 @@
     --fg:#e4eff2; --muted:#8fa9b1;
     --accent:#4fb8d4; --accent-fg:#06222b;
     --urgent:#ff7a66; --urgent-bg:#3a1a15;
-    --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97;
+    --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97; --s-doriane:#f08bb8;
     color-scheme:dark;
   }
 }
@@ -33,7 +33,7 @@
   --fg:#e4eff2; --muted:#8fa9b1;
   --accent:#4fb8d4; --accent-fg:#06222b;
   --urgent:#ff7a66; --urgent-bg:#3a1a15;
-  --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97;
+  --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97; --s-doriane:#f08bb8;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -67,7 +67,7 @@ button{cursor:pointer}
 .tabs button b{font-family:var(--mono);font-size:16px;color:var(--fg)}
 .tabs button[aria-selected=true]{border-color:var(--c);box-shadow:inset 0 -3px 0 var(--c);color:var(--fg)}
 
-.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start}
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:start}
 .col{display:flex;flex-direction:column;gap:10px;min-width:0}
 .col h2{font-family:var(--display);font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:3px solid var(--c)}
 .col h2 i{font-style:normal;font-family:var(--mono);font-size:13px;color:var(--muted);margin-left:auto}
@@ -80,9 +80,9 @@ button{cursor:pointer}
 .txt{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
 .client{font-weight:600;font-size:13px;overflow-wrap:anywhere}
 .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
-.seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.seg button{background:var(--sunk);border:0;border-right:1px solid var(--line);padding:8px 2px;font-size:12px;font-weight:600;color:var(--muted);min-width:0}
-.seg button:last-child{border-right:0}
+.seg{display:flex;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{flex:1 1 auto;background:var(--sunk);border:0;padding:8px 6px;font-size:12px;font-weight:600;color:var(--muted);min-width:0}
+.card textarea{width:100%;min-height:70px;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:8px 10px;resize:vertical}
 .seg button[aria-pressed=true]{background:var(--c);color:var(--surface)}
 .tools{display:flex;flex-wrap:wrap;gap:4px 14px}
 .link{background:none;border:0;padding:4px 0;font-size:13px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
@@ -98,7 +98,7 @@ button{cursor:pointer}
 .reply button{flex:none;padding:8px 12px}
 .reply input{padding:8px 10px}
 
-@media (max-width:860px){
+@media (max-width:1000px){
   .tabs{display:flex}
   .board{grid-template-columns:minmax(0,1fr)}
   .col{display:none}
@@ -138,13 +138,15 @@ button{cursor:pointer}
 <script>
 (function(){
   var STATUTS = [
-    {k:"nouveau", label:"À faire",  court:"À faire",   c:"var(--s-nouveau)", vide:"Rien à faire pour l'instant."},
-    {k:"vu",      label:"Pris en compte", court:"Pris", c:"var(--s-vu)",   vide:"Rien de pris en compte."},
+    {k:"nouveau", label:"À faire",  court:"À faire",  c:"var(--s-nouveau)", vide:"Rien à faire pour l'instant."},
+    {k:"doriane", label:"Doriane",  court:"Doriane",  c:"var(--s-doriane)", vide:"Rien pour Doriane."},
+    {k:"vu",      label:"Pris en compte", court:"Pris", c:"var(--s-vu)",    vide:"Rien de pris en compte."},
     {k:"encours", label:"En cours", court:"En cours", c:"var(--s-encours)", vide:"Rien en cours."},
     {k:"traite",  label:"Traité",   court:"Traité",   c:"var(--s-traite)",  vide:"Rien de traité ces 7 derniers jours."}
   ];
   var SEPT_JOURS = 7*24*3600*1000;
   var $ = function(id){ return document.getElementById(id); };
+  var edition = null, brouillonEd = "";
   var db = null, notes = [], pret = false, lecture = false;
   var onglet = "nouveau", ouvert = null, aSupprimer = null, brouillons = {}, enCours = {};
   var prenom = "";
@@ -195,7 +197,8 @@ button{cursor:pointer}
     h += '<article class="card' + (n.urgent ? " urgent" : "") + '" data-id="' + esc(n.id) + '">';
     if(n.urgent) h += '<span class="flag">Urgent</span>';
     if(n.client) h += '<div class="client">' + esc(n.client) + '</div>';
-    if(n.texte) h += '<p class="txt">' + esc(n.texte) + '</p>';
+    if(edition === n.id) h += '<textarea id="ed-' + esc(n.id) + '" maxlength="1500">' + esc(brouillonEd) + '</textarea><div class="tools"><button class="btn" type="button" data-act="ed-ok">Enregistrer</button><button class="link" type="button" data-act="ed-non">Annuler</button></div>';
+    else if(n.texte) h += '<p class="txt">' + esc(n.texte) + '</p>';
     var pj = Array.isArray(n.pieces) ? n.pieces : [];
     if(pj.length){
       h += '<div class="pj">';
@@ -208,13 +211,13 @@ button{cursor:pointer}
       h += '</div>';
     }
     h += '<div class="meta">' + esc(quand(n.cree));
-    if(n.statutLe && n.statut !== "nouveau") h += '<br>' + esc(STATUTS.filter(function(s){return s.k===n.statut;})[0].label.toLowerCase()) + ' · ' + esc(quand(n.statutLe));
+    if(n.statutLe && n.statut !== "nouveau") h += '<br>' + esc(STATUTS.filter(function(s){return s.k===n.statut;})[0].label) + ' · ' + esc(quand(n.statutLe));
     h += '</div>';
     var rep = Array.isArray(n.reponses) ? n.reponses : [];
     if(rep.length || ouvert === n.id){
       h += '<div class="replies">';
       rep.forEach(function(r){ h += '<p>' + esc(r.t) + '</p>'; });
-      if(ouvert === n.id && !lecture) h += '<div class="reply"><input type="text" id="rep-' + esc(n.id) + '" maxlength="500" placeholder="Ta réponse" value="' + esc(brouillons[n.id] || "") + '"><button class="btn" type="button" data-act="envoyer">Envoyer</button></div>';
+      if(ouvert === n.id && !lecture) h += '<div class="reply"><input type="text" id="rep-' + esc(n.id) + '" maxlength="500" placeholder="Ton commentaire" value="' + esc(brouillons[n.id] || "") + '"><button class="btn" type="button" data-act="envoyer">Envoyer</button></div>';
       h += '</div>';
     }
     if(!lecture){
@@ -223,6 +226,8 @@ button{cursor:pointer}
         h += '<button type="button" data-act="statut" data-s="' + s.k + '" style="--c:' + s.c + '" aria-pressed="' + (n.statut === s.k || (s.k==="nouveau" && !n.statut)) + '"' + (occupe ? " disabled" : "") + '>' + s.court + '</button>';
       });
       h += '</div><div class="tools">';
+      if(edition !== n.id) h += '<button class="link" type="button" data-act="modifier">Modifier</button>';
+      if(ouvert !== n.id) h += '<button class="link" type="button" data-act="repondre">Commenter</button>';
       h += '<button class="link" type="button" data-act="haut"' + (occupe ? " disabled" : "") + '>↑ Monter</button>';
       h += '<button class="link" type="button" data-act="bas"' + (occupe ? " disabled" : "") + '>↓ Descendre</button>';
       h += '<button class="link" type="button" data-act="urgent">' + (n.urgent ? "Retirer urgent" : "Passer en urgent") + '</button>';
@@ -235,7 +240,7 @@ button{cursor:pointer}
   }
 
   function rendre(){
-    var actif = document.activeElement, focusId = actif && actif.id && actif.id.indexOf("rep-") === 0 ? actif.id : null;
+    var actif = document.activeElement, focusId = actif && actif.id && /^(rep|ed)-/.test(actif.id) ? actif.id : null;
     var tabs = "", cols = "";
     STATUTS.forEach(function(s){
       var g = groupe(s.k);
@@ -266,6 +271,7 @@ button{cursor:pointer}
   });
   $("board").addEventListener("input", function(e){
     if(e.target.id && e.target.id.indexOf("rep-") === 0) brouillons[e.target.id.slice(4)] = e.target.value;
+    if(e.target.id && e.target.id.indexOf("ed-") === 0) brouillonEd = e.target.value;
   });
   $("board").addEventListener("keydown", function(e){
     if(e.key === "Enter" && e.target.id && e.target.id.indexOf("rep-") === 0){ e.preventDefault(); repondre(e.target.id.slice(4)); }
@@ -290,6 +296,13 @@ button{cursor:pointer}
       var a = cle(n), b = cle(v);
       if(a === b){ ecrire(id, {ordre: b + sens}); }
       else { ecrire(id, {ordre: b}); ecrire(v.id, {ordre: a}); }
+    }
+    else if(act === "modifier"){ edition = id; brouillonEd = n.texte || ""; rendre(); var ed = $("ed-" + id); if(ed) ed.focus(); }
+    else if(act === "ed-non"){ edition = null; rendre(); }
+    else if(act === "ed-ok"){
+      var nt = brouillonEd.trim(); if(!nt) return;
+      edition = null;
+      if(nt === n.texte) rendre(); else ecrire(id, {texte: nt});
     }
     else if(act === "repondre"){ ouvert = id; rendre(); var el = $("rep-" + id); if(el) el.focus(); }
     else if(act === "envoyer"){ repondre(id); }
@@ -351,7 +364,7 @@ button{cursor:pointer}
 
   majQui(); rendre();
 
-  // Stockage local : meme interface que la version partagee, mais dans le navigateur.
+  // Stockage local : les cartes restent dans le navigateur de l'appareil.
   var CLE = "fil_thibeau_notes", ecouteur = null;
   function lire(){ try { return JSON.parse(localStorage.getItem(CLE) || "[]") || []; } catch(e){ return []; } }
   function sauver(liste){
