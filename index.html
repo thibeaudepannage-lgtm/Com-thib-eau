@@ -4,7 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Le Fil Thib'eau</title>
-<!-- Version solo : aucune configuration. Les cartes sont gardees dans le navigateur de l'appareil (localStorage). -->
+<!--
+  Les cartes sont enregistrees dans Firebase (projet fil-thibeau, collection "notes").
+  Regle a mettre dans Firestore > Regles :
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /notes/{id} { allow read, write: if true; }
+       }
+     }
+-->
+<script>
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBKNLzdub2Q7BydKj3FQaGaLOSXrkp7KP8",
+  authDomain: "fil-thibeau.firebaseapp.com",
+  projectId: "fil-thibeau",
+  storageBucket: "fil-thibeau.firebasestorage.app",
+  messagingSenderId: "220780599157",
+  appId: "1:220780599157:web:10ddc8723e246012d0a53c"
+};
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout : un fil d'équipe. Saisie en haut, puis 4 colonnes d'état (onglets au téléphone). */
@@ -114,7 +136,7 @@ button{cursor:pointer}
   <header>
     <div>
       <h1>Le Fil <span>Thib'eau</span></h1>
-      <p class="sub">Note ce qu'il y a à faire, change l'état au fur et à mesure et classe dans l'ordre.</p>
+      <p class="sub">Note ce qu'il y a à faire. Tout le monde le voit, on change l'état et on classe dans l'ordre.</p>
     </div>
   </header>
 
@@ -165,6 +187,7 @@ button{cursor:pointer}
   function refus(e){
     var code = e && e.code;
     if(code === "invalid_argument" || code === "not_granted" || code === "revoked"){ lecture = true; majAcces(); return "Tu peux lire le fil, mais pas le modifier avec cet accès."; }
+    if(code === "permission-denied") return "Accès refusé par Firebase. Vérifie la règle Firestore.";
     if(code === "too_large") return "Fichier trop lourd (20 Mo maximum).";
     if(code === "unsupported_type") return "Format non accepté : photos (JPG, PNG) et PDF uniquement.";
     if(code === "quota_or_state") return "Plus de place pour les fichiers. Supprime d'anciennes cartes avec photos.";
@@ -175,7 +198,7 @@ button{cursor:pointer}
   function majQui(){}
   function majAcces(){
     var n = $("notice");
-    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne peut pas se charger ici. Ouvre cette page en étant connecté à ton compte Claude."; $("composer").hidden = true; }
+    if(!db && pret){ n.hidden = false; n.textContent = "Le fil ne se charge pas. Vérifie ta connexion internet et la règle Firestore (voir en haut du fichier)."; $("composer").hidden = true; }
     else if(lecture){ n.hidden = false; n.textContent = "Tu as un accès en lecture seule : tu vois le fil, sans pouvoir publier ni déplacer les cartes."; $("composer").hidden = true; }
     else { n.hidden = true; $("composer").hidden = false; }
   }
@@ -364,39 +387,17 @@ button{cursor:pointer}
 
   majQui(); rendre();
 
-  // Stockage local : les cartes restent dans le navigateur de l'appareil.
-  var CLE = "fil_thibeau_notes", ecouteur = null;
-  function lire(){ try { return JSON.parse(localStorage.getItem(CLE) || "[]") || []; } catch(e){ return []; } }
-  function sauver(liste){
-    try { localStorage.setItem(CLE, JSON.stringify(liste)); }
-    catch(e){ return Promise.reject({code:"stockage"}); }
-    diffuser(); return Promise.resolve();
+  if(!window.firebase){
+    pret = true; $("notice").hidden = false; $("composer").hidden = true;
+    $("notice").textContent = "Firebase ne s'est pas chargé. Vérifie ta connexion internet et recharge la page.";
+    rendre(); return;
   }
-  function diffuser(){
-    if(ecouteur) ecouteur({docs: lire().map(function(n){ return {id:n.id, data:function(){ return n; }}; })});
-  }
-  db = {
-    collection: function(){
-      var c = {
-        add: function(d){ var l = lire(); d.id = "n" + Date.now() + Math.random().toString(36).slice(2,7); l.push(d); return sauver(l); },
-        limit: function(){ return c; },
-        onSnapshot: function(cb){ ecouteur = cb; diffuser(); }
-      };
-      return c;
-    },
-    doc: function(chemin){
-      var id = chemin.split("/")[1];
-      return {
-        update: function(p){ var l = lire(); l.forEach(function(n){ if(n.id === id) Object.assign(n, p); }); return sauver(l); },
-        delete: function(){ return sauver(lire().filter(function(n){ return n.id !== id; })); }
-      };
-    }
-  };
-  window.addEventListener("storage", function(e){ if(e.key === CLE) diffuser(); });
-  db.collection("notes").onSnapshot(function(snap){
-    notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data()); o.id = doc.id; return o; });
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  db = firebase.firestore();
+  db.collection("notes").limit(1000).onSnapshot(function(snap){
+    notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
     pret = true; majAcces(); rendre();
-  });
+  }, function(){ pret = true; db = null; majAcces(); rendre(); });
 })();
 </script>
 </body>
