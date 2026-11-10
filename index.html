@@ -36,6 +36,7 @@ window.FIREBASE_CONFIG = {
   --accent:#0b6f8a; --accent-fg:#ffffff;
   --urgent:#c4321f; --urgent-bg:#fde9e5;
   --s-nouveau:#b06a00; --s-vu:#0b6f8a; --s-encours:#6a4bb5; --s-traite:#2c7a4b; --s-doriane:#b0336f;
+  --com:#e07b00; --com-bg:#fff1dc;
   --display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -47,6 +48,7 @@ window.FIREBASE_CONFIG = {
     --accent:#4fb8d4; --accent-fg:#06222b;
     --urgent:#ff7a66; --urgent-bg:#3a1a15;
     --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97; --s-doriane:#f08bb8;
+    --com:#f5a524; --com-bg:#3a2a10;
     color-scheme:dark;
   }
 }
@@ -56,6 +58,7 @@ window.FIREBASE_CONFIG = {
   --accent:#4fb8d4; --accent-fg:#06222b;
   --urgent:#ff7a66; --urgent-bg:#3a1a15;
   --s-nouveau:#f0b04a; --s-vu:#4fb8d4; --s-encours:#b39cf0; --s-traite:#6fcf97; --s-doriane:#f08bb8;
+  --com:#f5a524; --com-bg:#3a2a10;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -86,8 +89,9 @@ button{cursor:pointer}
 
 .tabs{display:none;gap:6px}
 .tabs button{flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 4px;font-size:13px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
-.tabs button b{font-family:var(--mono);font-size:16px;color:var(--fg)}
+.tabs button b{font-family:var(--mono);font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:4px}
 .tabs button[aria-selected=true]{border-color:var(--c);box-shadow:inset 0 -3px 0 var(--c);color:var(--fg)}
+.pt{width:9px;height:9px;border-radius:50%;background:var(--com);display:inline-block;flex:none}
 
 .board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:start}
 .col{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -98,10 +102,14 @@ button{cursor:pointer}
 
 .card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:9px;min-width:0}
 .card.urgent{border-color:var(--urgent);background:var(--urgent-bg)}
+.card.nouveaucom{border:2px solid var(--com);padding:11px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .flag{align-self:flex-start;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--urgent)}
+.newcom{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--com);background:var(--com-bg);padding:3px 9px;border-radius:999px}
 .txt{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
 .client{font-weight:600;font-size:13px;overflow-wrap:anywhere}
 .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.compte{font-weight:600;color:var(--fg)}
 .seg{display:flex;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .seg button{flex:1 1 auto;background:var(--sunk);border:0;padding:8px 6px;font-size:12px;font-weight:600;color:var(--muted);min-width:0}
 .card textarea{width:100%;min-height:70px;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:8px 10px;resize:vertical}
@@ -116,6 +124,11 @@ button{cursor:pointer}
 .replies{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:8px}
 .replies p{margin:0;font-size:13.5px;overflow-wrap:anywhere}
 .replies p b{font-weight:600}
+.com{display:flex;flex-direction:column;gap:2px;background:var(--sunk);border-radius:7px;padding:7px 10px}
+.com.last{background:var(--sunk);border-left:3px solid var(--accent);border-radius:0 7px 7px 0}
+.card.nouveaucom .com.last{border-left-color:var(--com);background:var(--com-bg)}
+.com .meta{font-size:11px}
+.com p{font-size:14px}
 .reply{display:flex;gap:6px}
 .reply button{flex:none;padding:8px 12px}
 .reply input{padding:8px 10px}
@@ -174,6 +187,25 @@ button{cursor:pointer}
   var prenom = "";
   try { prenom = localStorage.getItem("fil_prenom") || ""; onglet = localStorage.getItem("fil_onglet") || "nouveau"; } catch(e){}
 
+  // Commentaires deja vus sur cet appareil : { idCarte : heure du dernier commentaire vu }
+  var vus = null, deplie = {};
+  try { vus = JSON.parse(localStorage.getItem("fil_vus") || "null"); } catch(e){ vus = null; }
+  var premiereFois = !vus || typeof vus !== "object";
+  if(premiereFois) vus = {};
+  function sauverVus(){ try { localStorage.setItem("fil_vus", JSON.stringify(vus)); } catch(e){} }
+  function dernierCom(n){
+    var rep = Array.isArray(n.reponses) ? n.reponses : [], t = 0;
+    rep.forEach(function(r){ if(r && r.le > t) t = r.le; });
+    return t;
+  }
+  function nouveauCom(n){ var t = dernierCom(n); return t > 0 && t > (vus[n.id] || 0); }
+  function marquerVu(id){
+    var n = trouver(id); if(!n) return false;
+    var t = dernierCom(n);
+    if(t > (vus[id] || 0)){ vus[id] = t; sauverVus(); return true; }
+    return false;
+  }
+
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function quand(t){
     if(!t) return "";
@@ -217,8 +249,15 @@ button{cursor:pointer}
 
   function carte(n){
     var occupe = !!enCours[n.id], h = "";
-    h += '<article class="card' + (n.urgent ? " urgent" : "") + '" data-id="' + esc(n.id) + '">';
-    if(n.urgent) h += '<span class="flag">Urgent</span>';
+    var rep = Array.isArray(n.reponses) ? n.reponses : [];
+    var nv = nouveauCom(n);
+    h += '<article class="card' + (n.urgent ? " urgent" : "") + (nv ? " nouveaucom" : "") + '" data-id="' + esc(n.id) + '">';
+    if(n.urgent || nv){
+      h += '<div class="badges">';
+      if(n.urgent) h += '<span class="flag">Urgent</span>';
+      if(nv) h += '<span class="newcom"><span class="pt"></span>Nouveau commentaire</span>';
+      h += '</div>';
+    }
     if(n.client) h += '<div class="client">' + esc(n.client) + '</div>';
     if(edition === n.id) h += '<textarea id="ed-' + esc(n.id) + '" maxlength="1500">' + esc(brouillonEd) + '</textarea><div class="tools"><button class="btn" type="button" data-act="ed-ok">Enregistrer</button><button class="link" type="button" data-act="ed-non">Annuler</button></div>';
     else if(n.texte) h += '<p class="txt">' + esc(n.texte) + '</p>';
@@ -234,12 +273,18 @@ button{cursor:pointer}
       h += '</div>';
     }
     h += '<div class="meta">' + esc(quand(n.cree));
+    if(rep.length) h += ' · <span class="compte">💬 ' + rep.length + '</span>';
     if(n.statutLe && n.statut !== "nouveau") h += '<br>' + esc(STATUTS.filter(function(s){return s.k===n.statut;})[0].label) + ' · ' + esc(quand(n.statutLe));
     h += '</div>';
-    var rep = Array.isArray(n.reponses) ? n.reponses : [];
     if(rep.length || ouvert === n.id){
       h += '<div class="replies">';
-      rep.forEach(function(r){ h += '<p>' + esc(r.t) + '</p>'; });
+      var tous = deplie[n.id] || rep.length <= 1;
+      if(!tous) h += '<button class="link" type="button" data-act="deplier">Voir les ' + rep.length + ' commentaires</button>';
+      (tous ? rep : rep.slice(-1)).forEach(function(r){
+        var dernier = r === rep[rep.length - 1];
+        h += '<div class="com' + (dernier ? " last" : "") + '"><span class="meta">' + (dernier && rep.length > 1 ? "Dernier commentaire" : "Commentaire") + (r.le ? " · " + esc(quand(r.le)) : "") + '</span><p>' + esc(r.t) + '</p></div>';
+      });
+      if(deplie[n.id] && rep.length > 1) h += '<button class="link" type="button" data-act="replier">Masquer les anciens</button>';
       if(ouvert === n.id && !lecture) h += '<div class="reply"><input type="text" id="rep-' + esc(n.id) + '" maxlength="500" placeholder="Ton commentaire" value="' + esc(brouillons[n.id] || "") + '"><button class="btn" type="button" data-act="envoyer">Envoyer</button></div>';
       h += '</div>';
     }
@@ -266,9 +311,9 @@ button{cursor:pointer}
     var actif = document.activeElement, focusId = actif && actif.id && /^(rep|ed)-/.test(actif.id) ? actif.id : null;
     var tabs = "", cols = "";
     STATUTS.forEach(function(s){
-      var g = groupe(s.k);
-      tabs += '<button type="button" role="tab" data-tab="' + s.k + '" style="--c:' + s.c + '" aria-selected="' + (onglet === s.k) + '"><b>' + g.length + '</b>' + s.court + '</button>';
-      cols += '<section class="col' + (onglet === s.k ? " active" : "") + '" style="--c:' + s.c + '"><h2>' + s.label + (s.k==="traite" ? ' <small>7 derniers jours</small>' : '') + '<i>' + g.length + '</i></h2>';
+      var g = groupe(s.k), pastille = g.some(nouveauCom) ? '<span class="pt" title="Nouveau commentaire"></span>' : '';
+      tabs += '<button type="button" role="tab" data-tab="' + s.k + '" style="--c:' + s.c + '" aria-selected="' + (onglet === s.k) + '"><b>' + g.length + pastille + '</b>' + s.court + '</button>';
+      cols += '<section class="col' + (onglet === s.k ? " active" : "") + '" style="--c:' + s.c + '"><h2>' + s.label + (s.k==="traite" ? ' <small>7 derniers jours</small>' : '') + pastille + '<i>' + g.length + '</i></h2>';
       if(!pret) cols += '<div class="empty">Chargement du fil…</div>';
       else if(!g.length) cols += '<div class="empty">' + (notes.length === 0 && s.k === "nouveau" ? "La liste est vide. Écris la première chose à faire juste au-dessus." : s.vide) + '</div>';
       else cols += g.map(carte).join("");
@@ -302,12 +347,17 @@ button{cursor:pointer}
   function repondre(id){
     var n = trouver(id), t = (brouillons[id] || "").trim();
     if(!n || !t || !exigerPrenom()) return;
-    var rep = (Array.isArray(n.reponses) ? n.reponses.slice() : []).concat([{a:prenom, t:t, le:Date.now()}]);
+    var le = Date.now();
+    var rep = (Array.isArray(n.reponses) ? n.reponses.slice() : []).concat([{a:prenom, t:t, le:le}]);
+    vus[id] = le; sauverVus();
     ecrire(id, {reponses:rep}).then(function(ok){ if(ok){ delete brouillons[id]; ouvert = null; rendre(); } });
   }
   $("board").addEventListener("click", function(e){
+    var carteEl = e.target.closest(".card"); if(!carteEl) return;
+    var id = carteEl.dataset.id;
+    if(marquerVu(id)) rendre();
     var b = e.target.closest("[data-act]"); if(!b || !db) return;
-    var id = b.closest(".card").dataset.id, n = trouver(id), act = b.dataset.act; if(!n) return;
+    var n = trouver(id), act = b.dataset.act; if(!n) return;
     if(act === "statut"){
       if(n.statut === b.dataset.s || !exigerPrenom()) return;
       ecrire(id, {statut:b.dataset.s, statutPar:prenom, statutLe:Date.now()});
@@ -316,10 +366,12 @@ button{cursor:pointer}
       var sens = act === "haut" ? -1 : 1, g = groupe(STATUTS.some(function(x){ return x.k === n.statut; }) ? n.statut : "nouveau");
       var v = g[g.indexOf(n) + sens];
       if(!v || !!v.urgent !== !!n.urgent) return;
-      var a = cle(n), b = cle(v);
-      if(a === b){ ecrire(id, {ordre: b + sens}); }
-      else { ecrire(id, {ordre: b}); ecrire(v.id, {ordre: a}); }
+      var a = cle(n), bb = cle(v);
+      if(a === bb){ ecrire(id, {ordre: bb + sens}); }
+      else { ecrire(id, {ordre: bb}); ecrire(v.id, {ordre: a}); }
     }
+    else if(act === "deplier"){ deplie[id] = true; rendre(); }
+    else if(act === "replier"){ delete deplie[id]; rendre(); }
     else if(act === "modifier"){ edition = id; brouillonEd = n.texte || ""; rendre(); var ed = $("ed-" + id); if(ed) ed.focus(); }
     else if(act === "ed-non"){ edition = null; rendre(); }
     else if(act === "ed-ok"){
@@ -396,6 +448,8 @@ button{cursor:pointer}
   db = firebase.firestore();
   db.collection("notes").limit(1000).onSnapshot(function(snap){
     notes = snap.docs.map(function(doc){ var o = Object.assign({}, doc.data() || {}); o.id = doc.id; return o; });
+    // Premiere ouverture sur cet appareil : les anciens commentaires comptent comme deja vus.
+    if(premiereFois){ notes.forEach(function(n){ vus[n.id] = dernierCom(n); }); sauverVus(); premiereFois = false; }
     pret = true; majAcces(); rendre();
   }, function(){ pret = true; db = null; majAcces(); rendre(); });
 })();
